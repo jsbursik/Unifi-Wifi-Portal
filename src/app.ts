@@ -1,7 +1,8 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 
-import { ExpressAuth, getSession } from "@auth/express";
+import { ExpressAuth } from "@auth/express";
 import { authConfig } from "./config/auth.config.js";
+import { authSession, authenticatedUser } from "./middleware/auth.js";
 
 const app: Express = express();
 
@@ -9,19 +10,21 @@ const port = process.env.PORT || 3000;
 
 app.set("trust proxy", true);
 
-app.use('/api/auth/*', ExpressAuth(authConfig));
+app.use(authSession);
 
-app.get('/', (req: Request, res: Response, next: NextFunction) => {
-  console.log(`[server]: Connection from ${req.ip}`);
-  res.send("Hello World!");
-})
+app.use("/api/auth/*", ExpressAuth(authConfig));
 
-app.get('/protected', async (req: Request, res: Response, next: NextFunction) => {
-  const session = await (getSession(req, authConfig)) ?? undefined;
-  console.log(`[server]: Displaying Session to user at ${req.ip}`)
-  res.send(JSON.stringify(session))
-})
+app.get("/", (req: Request, res: Response) => {
+  const { session } = res.locals;
+  console.log(`[server]: Connection from ${res.locals.session ? res.locals.session.user.name : req.ip}`);
+  res.send(`Hello ${res.locals.session ? res.locals.session.user.name : "World"}!`);
+});
 
-app.listen(port, "0.0.0.0", () => {
-  console.log(`[server]: Server listening on http://0.0.0.0:${port}`);
-})
+app.get("/protected", authenticatedUser, async (req: Request, res: Response) => {
+  console.log(`[server]: ${res.locals.session.user.name} accessed /protected`);
+  res.send(`Hello, ${res.locals.session.user.name}, this page is protected!`);
+});
+
+app.listen(port, () => {
+  console.log(`[server]: Server listening on http://localhost:${port}`);
+});
